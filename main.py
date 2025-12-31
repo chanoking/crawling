@@ -1,6 +1,7 @@
 import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
+from urllib.parse import urlparse
 
 # -----------------------------
 # 1. 인플루언서 템플릿 판별
@@ -10,38 +11,30 @@ def detect_influencer_template(page):
         '[data-block-id="ugc/prs_template_ugc_influencer_collection_mo.ts"]'
     ).count() > 0:
         return "collection"
-
     if page.locator(
         '[data-block-id="ugc/prs_template_ugc_influencer_participation_mo.ts"]'
     ).count() > 0:
         return "participation"
-
     return None
 
 # -----------------------------
-# 2. 공통 아이템 추출 (실제 글 URL 가져오기)
+# 2. 실제 글 URL 추출
 # -----------------------------
-def extract_item(item, rank, template=None):
-    # 1. 제목 추출
+def extract_item(item, rank):
     title = ""
     title_el = item.locator(".fds-comps-text")
     if title_el.count() > 0:
         title = title_el.first.inner_text().strip()
 
-    # 2. 실제 글 URL 찾기
     href = ""
     all_links = item.locator("a").all()
     for l in all_links:
         h = l.get_attribute("href") or ""
-        if "/contents/internal/" in h:  # 실제 글 URL 패턴
+        if "/contents/internal/" in h:
             href = h
             break
 
-    return {
-        "rank": rank,
-        "title": title,
-        "url": href
-    }
+    return {"rank": rank, "title": title, "url": href}
 
 # -----------------------------
 # 3. collection 파서
@@ -50,14 +43,11 @@ def parse_collection(page):
     block = page.locator(
         '[data-block-id="ugc/prs_template_ugc_influencer_collection_mo.ts"]'
     )
-
     items = block.locator('[data-template-id="ugcItemMo"]')
     results = []
-
     for i in range(items.count()):
         item = items.nth(i)
-        results.append(extract_item(item, rank=i + 1, template="collection"))
-
+        results.append(extract_item(item, rank=i + 1))
     return results
 
 # -----------------------------
@@ -69,36 +59,65 @@ def parse_participation(page):
     )
     items = block.locator('[data-template-id="ugcItemMo"]')
     results = []
-
     for i in range(items.count()):
         item = items.nth(i)
-        results.append(extract_item(item, rank=i + 1, template="participation")) 
-
+        results.append(extract_item(item, rank=i + 1))
     return results
 
 # -----------------------------
-# 5. 키워드 하나 처리
+# 5. URL 핵심 비교 함수
 # -----------------------------
-def check_keyword(page, keyword):
+def is_same_blog(url1, url2):
+    if not url1 or not url2:
+        return False
+    parts1 = urlparse(url1).path.split("/")
+    parts2 = urlparse(url2).path.split("/")
+    try:
+        blog1, log1 = parts1[1], parts1[4]
+        blog2, log2 = parts2[1], parts2[4]
+        return blog1 == blog2 and log1 == log2
+    except IndexError:
+        return False
+
+# -----------------------------
+# 6. 키워드 하나 처리 (순위 반환 + 디버그 출력)
+# -----------------------------
+def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
     url = f"https://search.naver.com/search.naver?query={keyword}"
     page.goto(url)
+    time.sleep(2)
 
-    print("접속 URL:", page.url)  # 디버깅용
     template = detect_influencer_template(page)
-    print("감지된 템플릿:", template)
+    if not template:
+        print("템플릿 없음")
+        return 0
 
-    if template == "collection":
-        return parse_collection(page)
-    elif template == "participation":
-        return parse_participation(page)
+    items = parse_collection(page) if template == "collection" else parse_participation(page)
 
-    return []
+    rank = 0
+    print(f"=== 디버그: 키워드 '{keyword}' 상위 글 비교 ===")
+    for item in items:
+        is_match_url = is_same_blog(target_url, item["url"])
+        is_match_title = not is_match_url and target_title and target_title.strip() == item["title"]
+
+        print(f"[DEBUG] 입력 URL: {target_url}")
+        print(f"[DEBUG] 상위 글 URL: {item['url']} -> URL 일치? {is_match_url}")
+        print(f"[DEBUG] 입력 Title: {target_title}")
+        print(f"[DEBUG] 상위 글 Title: {item['title']} -> Title 일치? {is_match_title}")
+        print(f"[DEBUG] 예상 순위: {item['rank']}")
+        print("----------------------------")
+
+        if is_match_url or is_match_title:
+            rank = item["rank"]
+            break
+
+    return rank
 
 # -----------------------------
-# 6. 메인 실행
+# 7. 메인 실행
 # -----------------------------
 def main():
-    df = pd.read_excel("input.xlsx")  # keyword 컬럼 필수
+    df = pd.read_excel("input.xlsx")  # keyword, target_url, target_title 필수
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -118,30 +137,23 @@ def main():
 
         for idx, row in df.iterrows():
             keyword = row["keyword"]
-            print("\n==============================")
-            print("키워드:", keyword)
+            target_url = row.get("target_url")
+            target_title = row.get("target_title")
 
             try:
-                results = check_keyword(page, keyword)
+                rank = get_rank_for_keyword(page, keyword, target_url, target_title)
             except Exception as e:
                 print("[ERROR]", e)
-                results = []
+                rank = 0
 
-            # 최대 3개만 기록
-            for i in range(3):
-                if i < len(results):
-                    df.at[idx, f"top{i+1}_title"] = results[i]["title"]
-                    df.at[idx, f"top{i+1}_url"] = results[i]["url"]
-                else:
-                    df.at[idx, f"top{i+1}_title"] = ""
-                    df.at[idx, f"top{i+1}_url"] = ""
-
-            print("결과:", results)
-            time.sleep(3)
+            df.at[idx, "rank"] = rank
+            print(f"최종 순위: {rank}")
+            time.sleep(2)
 
         browser.close()
 
-    df.to_excel("output_debug.xlsx", index=False)
+    df.to_excel("output_rank_debug.xlsx", index=False)
+    print("완료! output_rank_debug.xlsx 저장됨")
 
 if __name__ == "__main__":
     main()
