@@ -132,7 +132,7 @@ def main():
                 "Version/16.0 Mobile/15E148 Safari/604.1"
             )
         )
-
+        
         page = context.new_page()
 
         for idx, row in df.iterrows():
