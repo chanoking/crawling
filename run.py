@@ -17,7 +17,9 @@ def extract_item(item, rank):
     title_el_b = item.locator(
         'a[data-heatmap-target=".link"] span.sds-comps-text'
     )
-
+    title_el_c = item.locator(
+        'a[data-heatmap-target=".imgtitlelink"] span.sds-comps-text'
+    )
     # 타입 A
     if title_el_a.count() > 0:
         title = title_el_a.first.inner_text().strip()
@@ -44,6 +46,19 @@ def extract_item(item, rank):
             "url": href
         }
 
+    # 타입 C
+    if title_el_c.count() > 0:
+        title = title_el_c.first.inner_text().strip()
+        link_el = item.locator('a[data-heatmap-target=".imgtitlelink"]')
+        if link_el.count() > 0:
+            href = link_el.first.get_attribute("href") or ""
+
+        return {
+            "rank": rank,
+            "title": title,
+            "url": href
+        }
+
     # 매칭 실패
     return None
 
@@ -56,6 +71,7 @@ selectors = [
     '[data-block-id="ugc/prs_template_v2_ugc_default_mo.ts"]',
     '[data-block-id="ugc/prs_template_v2_ugc_snippet_paragraph_mo.ts"]',
     '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]',
+    '[data-block-id=”ugc/prs_template_v2_ugc_popular_article_mo.ts”]'
 ]
 
 
@@ -127,7 +143,7 @@ def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
     items = parse_blog_template(page)
 
     if not items:
-        return "단일 스불 아님"
+        return "블로그 블록 없음"
 
     for item in items:
         print(f"Iteration Title: {item["title"]}")
