@@ -11,16 +11,16 @@ def extract_item(item, rank):
     title = ""
     href = ""
 
-    # 제목 (제목 전용 셀렉터)
-    title_el = item.locator(
+    title_el_a = item.locator(
         'a[data-heatmap-target=".tit"] span.sds-comps-text'
     )
-    title_elB = item.locator(
+    title_el_b = item.locator(
         'a[data-heatmap-target=".link"] span.sds-comps-text'
     )
-    if title_el.count() > 0:
-        title = title_el.first.inner_text().strip()
-        # URL (제목 링크만)
+
+    # 타입 A
+    if title_el_a.count() > 0:
+        title = title_el_a.first.inner_text().strip()
         link_el = item.locator('a[data-heatmap-target=".tit"]')
         if link_el.count() > 0:
             href = link_el.first.get_attribute("href") or ""
@@ -30,9 +30,10 @@ def extract_item(item, rank):
             "title": title,
             "url": href
         }
-    if title_elB.count() > 0:
-        title = title_elB.first.inner_text().strip()
-        # URL (제목 링크만)
+
+    # 타입 B
+    if title_el_b.count() > 0:
+        title = title_el_b.first.inner_text().strip()
         link_el = item.locator('a[data-heatmap-target=".link"]')
         if link_el.count() > 0:
             href = link_el.first.get_attribute("href") or ""
@@ -42,28 +43,54 @@ def extract_item(item, rank):
             "title": title,
             "url": href
         }
-    
-    
 
+    # 매칭 실패
+    return None
+
+
+# ----------------------------
+# 블록 셀렉터 목록 (쉼표 누락 수정)
+# ----------------------------
+selectors = [
+    '[data-block-id="review/prs_template_v2_review_ugc_single_intention_mo.ts"]',
+    '[data-block-id="ugc/prs_template_v2_ugc_default_mo.ts"]',
+    '[data-block-id="ugc/prs_template_v2_ugc_snippet_paragraph_mo.ts"]',
+    '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]',
+]
+
+
+# ----------------------------
+# 블록 타입 판별
+# ----------------------------
+def determine_block_type(page):
+    for idx, selector in enumerate(selectors):
+        if page.locator(selector).count() > 0:
+            return idx
+    return None
 
 
 # ----------------------------
 # 블로그 템플릿 파싱
 # ----------------------------
 def parse_blog_template(page):
-    selector = '[data-block-id="review/prs_template_v2_review_ugc_single_intention_mo.ts"]'
-
-    if page.locator(selector).count() == 0:
+    kind = determine_block_type(page)
+    if kind is None:
         return None
 
-    block = page.locator(selector)
-    items = block.locator('[data-template-id="ugcItem"]')
+    selector = selectors[kind]
+    blocks = page.locator(selector)
 
     results = []
-    count = items.count()
-    for i in range(count):
-        item = items.nth(i)
-        results.append(extract_item(item, rank=i + 1))
+
+    for i in range(blocks.count()):
+        block = blocks.nth(i)
+        items = block.locator('[data-template-id="ugcItem"]')
+
+        for j in range(items.count()):
+            item = items.nth(j)
+            data = extract_item(item, rank=len(results) + 1)
+            if data:
+                results.append(data)
 
     return results
 
@@ -84,14 +111,9 @@ def is_same_blog(url1, url2):
     try:
         blog1, log1 = parts1[0], parts1[1]
         blog2, log2 = parts2[0], parts2[1]
-
-        print(f"[DEBUG] blog1={blog1}, log1={log1}")
-        print(f"[DEBUG] blog2={blog2}, log2={log2}")
-
         return blog1 == blog2 and log1 == log2
     except IndexError:
         return False
-
 
 
 # ----------------------------
@@ -104,24 +126,17 @@ def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
 
     items = parse_blog_template(page)
 
-    if items is None:
+    if not items:
         return "단일 스불 아님"
 
     for item in items:
+        print(f"Iteration Title: {item["title"]}")
         is_match_url = is_same_blog(target_url, item["url"])
         is_match_title = (
-            (not is_match_url)
-            and (target_title is not None)
-            and (target_title.strip() == item["title"])
+            not is_match_url
+            and target_title
+            and target_title.strip() == item["title"]
         )
-
-        print(f"keyword: {keyword}")
-        print(f"[DEBUG] 입력 URL: {target_url}")
-        print(f"[DEBUG] 상위 글 URL: {item['url']} -> URL 일치? {is_match_url}")
-        print(f"[DEBUG] 입력 Title: {target_title}")
-        print(f"[DEBUG] 상위 글 Title: {item['title']} -> Title 일치? {is_match_title}")
-        print(f"[DEBUG] 예상 순위: {item['rank']}")
-        print("-" * 30)
 
         if is_match_url or is_match_title:
             return item["rank"]
@@ -168,7 +183,7 @@ def main():
                 rank = 0
 
             df.at[idx, "rank"] = rank
-            print(f"최종 순위: {rank}")
+            print(f"{keyword} → 최종 순위: {rank}")
             time.sleep(2)
 
         browser.close()
