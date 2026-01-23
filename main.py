@@ -137,8 +137,8 @@ def main():
 
         for idx, row in df.iterrows():
             keyword = row["keyword"]
-            target_url = row.get("target_url")
-            target_title = row.get("target_title")
+            target_url = row.get("url")
+            target_title = row.get("title")
 
             try:
                 rank = get_rank_for_keyword(page, keyword, target_url, target_title)

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 # ----------------------------
 # 개별 아이템 추출
 # ----------------------------
-def extract_item(item, rank):
+def extract_item(item, rank, env):
     title = ""
     href = ""
 
@@ -20,58 +20,40 @@ def extract_item(item, rank):
     title_el_c = item.locator(
         'a[data-heatmap-target=".imgtitlelink"] span.sds-comps-text'
     )
-    # 타입 A
+
     if title_el_a.count() > 0:
         title = title_el_a.first.inner_text().strip()
         link_el = item.locator('a[data-heatmap-target=".tit"]')
         if link_el.count() > 0:
             href = link_el.first.get_attribute("href") or ""
+        return {"rank": rank, "title": title, "url": href, "env": env}
 
-        return {
-            "rank": rank,
-            "title": title,
-            "url": href
-        }
-
-    # 타입 B
     if title_el_b.count() > 0:
         title = title_el_b.first.inner_text().strip()
         link_el = item.locator('a[data-heatmap-target=".link"]')
         if link_el.count() > 0:
             href = link_el.first.get_attribute("href") or ""
+        return {"rank": rank, "title": title, "url": href, "env": env}
 
-        return {
-            "rank": rank,
-            "title": title,
-            "url": href
-        }
-
-    # 타입 C
     if title_el_c.count() > 0:
         title = title_el_c.first.inner_text().strip()
         link_el = item.locator('a[data-heatmap-target=".imgtitlelink"]')
         if link_el.count() > 0:
             href = link_el.first.get_attribute("href") or ""
+        return {"rank": rank, "title": title, "url": href, "env": env}
 
-        return {
-            "rank": rank,
-            "title": title,
-            "url": href
-        }
-
-    # 매칭 실패
     return None
 
 
 # ----------------------------
-# 블록 셀렉터 목록 (쉼표 누락 수정)
+# 블록 셀렉터 목록 (스마트 따옴표 수정)
 # ----------------------------
 selectors = [
     '[data-block-id="review/prs_template_v2_review_ugc_single_intention_mo.ts"]',
     '[data-block-id="ugc/prs_template_v2_ugc_default_mo.ts"]',
     '[data-block-id="ugc/prs_template_v2_ugc_snippet_paragraph_mo.ts"]',
+    '[data-block-id="ugc/prs_template_v2_ugc_popular_article_mo.ts"]',
     '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]',
-    '[data-block-id=”ugc/prs_template_v2_ugc_popular_article_mo.ts”]'
 ]
 
 
@@ -93,6 +75,15 @@ def parse_blog_template(page):
     if kind is None:
         return None
 
+    if kind == 0:
+        env = "Sole Block"
+    elif kind in [1, 2, 3]:
+        env = "Several Blocks"
+    elif kind == 4:
+        env = "주제판 없음"
+    else:
+        env = "블로그 블록 존재하지 않음"
+
     selector = selectors[kind]
     blocks = page.locator(selector)
 
@@ -104,7 +95,7 @@ def parse_blog_template(page):
 
         for j in range(items.count()):
             item = items.nth(j)
-            data = extract_item(item, rank=len(results) + 1)
+            data = extract_item(item, rank=len(results) + 1, env=env)
             if data:
                 results.append(data)
 
@@ -143,10 +134,9 @@ def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
     items = parse_blog_template(page)
 
     if not items:
-        return "블로그 블록 없음"
+        return [0, "블로그 블록 없음"]
 
     for item in items:
-        print(f"Iteration Title: {item["title"]}")
         is_match_url = is_same_blog(target_url, item["url"])
         is_match_title = (
             not is_match_url
@@ -155,9 +145,10 @@ def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
         )
 
         if is_match_url or is_match_title:
-            return item["rank"]
+            return [item["rank"], item["env"]]
 
-    return 0
+    # 매칭이 안된 경우에도 env는 items[0]에서 가져오도록 안전 처리
+    return [0, items[0]["env"]]
 
 
 # ----------------------------
@@ -188,18 +179,22 @@ def main():
             target_title = row.get("title")
 
             try:
-                rank = get_rank_for_keyword(
+                rankAndEnv = get_rank_for_keyword(
                     page,
                     keyword,
                     target_url,
                     target_title
                 )
+                rank = rankAndEnv[0]
+                env = rankAndEnv[1]
             except Exception as e:
                 print("[ERROR]", e)
                 rank = 0
+                env = "블록 없음"
 
             df.at[idx, "rank"] = rank
-            print(f"{keyword} → 최종 순위: {rank}")
+            df.at[idx, "env"] = env
+            print(f"{keyword} → 최종 순위: {rank} 환경타입: {env}")
             time.sleep(2)
 
         browser.close()
