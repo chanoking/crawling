@@ -11,49 +11,39 @@ def extract_item(item, rank, env):
     title = ""
     href = ""
 
-    title_el_a = item.locator(
-        'a[data-heatmap-target=".tit"] span.sds-comps-text'
-    )
-    title_el_b = item.locator(
-        'a[data-heatmap-target=".link"] span.sds-comps-text'
-    )
-    title_el_c = item.locator(
-        'a[data-heatmap-target=".imgtitlelink"] span.sds-comps-text'
-    )
+    selectors = [
+        ('a[data-heatmap-target=".tit"] span.sds-comps-text', 'a[data-heatmap-target=".tit"]'),
+        ('a[data-heatmap-target=".link"] span.sds-comps-text', 'a[data-heatmap-target=".link"]'),
+        ('a[data-heatmap-target=".imgtitlelink"] span.sds-comps-text', 'a[data-heatmap-target=".imgtitlelink"]'),
+    ]
 
-    if title_el_a.count() > 0:
-        title = title_el_a.first.inner_text().strip()
-        link_el = item.locator('a[data-heatmap-target=".tit"]')
-        if link_el.count() > 0:
-            href = link_el.first.get_attribute("href") or ""
-        return {"rank": rank, "title": title, "url": href, "env": env}
+    for title_sel, link_sel in selectors:
+        title_el = item.locator(title_sel)
+        if title_el.count() > 0:
+            title = title_el.first.inner_text().strip()
+            link_el = item.locator(link_sel)
+            if link_el.count() > 0:
+                href = link_el.first.get_attribute("href") or ""
 
-    if title_el_b.count() > 0:
-        title = title_el_b.first.inner_text().strip()
-        link_el = item.locator('a[data-heatmap-target=".link"]')
-        if link_el.count() > 0:
-            href = link_el.first.get_attribute("href") or ""
-        return {"rank": rank, "title": title, "url": href, "env": env}
-
-    if title_el_c.count() > 0:
-        title = title_el_c.first.inner_text().strip()
-        link_el = item.locator('a[data-heatmap-target=".imgtitlelink"]')
-        if link_el.count() > 0:
-            href = link_el.first.get_attribute("href") or ""
-        return {"rank": rank, "title": title, "url": href, "env": env}
+            return {
+                "rank": rank,
+                "title": title,
+                "url": href,
+                "env": env
+            }
 
     return None
 
 
 # ----------------------------
-# 블록 셀렉터 목록 (스마트 따옴표 수정)
+# 블록 셀렉터
 # ----------------------------
-selectors = [
+BLOCK_SELECTORS = [
     '[data-block-id="review/prs_template_v2_review_ugc_single_intention_mo.ts"]',
     '[data-block-id="ugc/prs_template_v2_ugc_default_mo.ts"]',
-    '[data-block-id="ugc/prs_template_v2_ugc_snippet_paragraph_mo.ts"]',
     '[data-block-id="ugc/prs_template_v2_ugc_popular_article_mo.ts"]',
-    '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]',
+    '[data-block-id="ugc/prs_template_v2_ugc_snippet_paragraph_mo.ts"]',
+    '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]'
 ]
 
 
@@ -61,7 +51,7 @@ selectors = [
 # 블록 타입 판별
 # ----------------------------
 def determine_block_type(page):
-    for idx, selector in enumerate(selectors):
+    for idx, selector in enumerate(BLOCK_SELECTORS):
         if page.locator(selector).count() > 0:
             return idx
     return None
@@ -82,9 +72,9 @@ def parse_blog_template(page):
     elif kind == 4:
         env = "주제판 없음"
     else:
-        env = "블로그 블록 존재하지 않음"
+        env = "블로그 블록 없음"
 
-    selector = selectors[kind]
+    selector = BLOCK_SELECTORS[kind]
     blocks = page.locator(selector)
 
     results = []
@@ -103,22 +93,16 @@ def parse_blog_template(page):
 
 
 # ----------------------------
-# 동일 블로그 글 여부 판단
+# 동일 블로그 판단
 # ----------------------------
 def is_same_blog(url1, url2):
     if not url1 or not url2:
         return False
 
-    p1 = urlparse(url1)
-    p2 = urlparse(url2)
-
-    parts1 = p1.path.strip("/").split("/")
-    parts2 = p2.path.strip("/").split("/")
-
     try:
-        blog1, log1 = parts1[0], parts1[1]
-        blog2, log2 = parts2[0], parts2[1]
-        return blog1 == blog2 and log1 == log2
+        p1 = urlparse(url1).path.strip("/").split("/")
+        p2 = urlparse(url2).path.strip("/").split("/")
+        return p1[0] == p2[0] and p1[1] == p2[1]
     except IndexError:
         return False
 
@@ -127,42 +111,58 @@ def is_same_blog(url1, url2):
 # 키워드별 순위 계산
 # ----------------------------
 def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
-    url = f"https://search.naver.com/search.naver?query={keyword}"
-    page.goto(url, wait_until="domcontentloaded")
+    page.goto(
+        f"https://search.naver.com/search.naver?query={keyword}",
+        wait_until="domcontentloaded"
+    )
     page.wait_for_timeout(2000)
 
     items = parse_blog_template(page)
-
     if not items:
-        return [0, "블로그 블록 없음"]
+        return 0, "블로그 블록 없음"
 
     for item in items:
-        is_match_url = is_same_blog(target_url, item["url"])
-        is_match_title = (
-            not is_match_url
-            and target_title
-            and target_title.strip() == item["title"]
-        )
+        if is_same_blog(target_url, item["url"]) or (
+            target_title and target_title.strip() == item["title"]
+        ):
+            return item["rank"], item["env"]
 
-        if is_match_url or is_match_title:
-            return [item["rank"], item["env"]]
-
-    # 매칭이 안된 경우에도 env는 items[0]에서 가져오도록 안전 처리
-    return [0, items[0]["env"]]
+    return 0, items[0]["env"]
 
 
 # ----------------------------
-# 메인 실행
+# Summary 시트 작성
+# ----------------------------
+def write_summary(items: dict):
+    rows = []
+
+    for keyword, data in items.items():
+        rows.append({
+            "키워드": keyword,
+            "노출횟수": data["cnt"],
+            "환경": data["env"]
+        })
+
+    df_summary = pd.DataFrame(rows)
+
+    with pd.ExcelWriter(
+        "Output_rankB.xlsx",
+        engine="openpyxl",
+        mode="a",
+        if_sheet_exists="replace"
+    ) as writer:
+        df_summary.to_excel(writer, sheet_name="Summary", index=False)
+
+
+# ----------------------------
+# 메인
 # ----------------------------
 def main():
     df = pd.read_excel("inputB.xlsx")
+    items = {}  # 키워드별 누적 dict
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=False,
-            args=["--disable-blink-features=AutomationControlled"]
-        )
-
+        browser = p.chromium.launch(headless=False)
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
@@ -170,37 +170,39 @@ def main():
                 "Version/16.0 Mobile/15E148 Safari/604.1"
             )
         )
-
         page = context.new_page()
 
         for idx, row in df.iterrows():
-            keyword = row["keyword"]
+            keyword_raw = row["keyword"]
             target_url = row.get("url")
             target_title = row.get("title")
 
-            try:
-                rankAndEnv = get_rank_for_keyword(
-                    page,
-                    keyword,
-                    target_url,
-                    target_title
-                )
-                rank = rankAndEnv[0]
-                env = rankAndEnv[1]
-            except Exception as e:
-                print("[ERROR]", e)
-                rank = 0
-                env = "블록 없음"
+            rank, env = get_rank_for_keyword(
+                page, keyword_raw, target_url, target_title
+            )
+
+            keyword = keyword_raw.replace(" ", "").upper()
+
+            if keyword not in items:
+                items[keyword] = {
+                    "cnt": 1 if rank > 0 else 0,
+                    "env": env
+                }
+            else:
+                if rank > 0:
+                    items[keyword]["cnt"] += 1
 
             df.at[idx, "rank"] = rank
             df.at[idx, "env"] = env
-            print(f"{keyword} → 최종 순위: {rank} 환경타입: {env}")
+
+            print(f"{keyword} → rank={rank}, env={env}")
             time.sleep(2)
 
         browser.close()
 
     df.to_excel("Output_rankB.xlsx", index=False)
-    print("Successfully downloaded a new file")
+    write_summary(items)
+    print("완료!")
 
 
 if __name__ == "__main__":
