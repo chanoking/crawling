@@ -2,10 +2,12 @@ import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
+# import datetime, os
 
-# -----------------------------
-# 1. 인플루언서 템플릿 판별
-# -----------------------------
+# with open("scheduler.log", "a", encoding="utf-8") as f:
+#     f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
+
+
 def detect_influencer_template(page):
     if page.locator(
         '[data-block-id="ugc/prs_template_ugc_influencer_collection_mo.ts"]'
@@ -17,28 +19,26 @@ def detect_influencer_template(page):
         return "participation"
     return None
 
-blog_names = [
-                "모모둥이", "아쿵아쿵", "셀럽주부", "안탈리아", "민들레", "v봉봉댁v", 
-                "소신있는라이프", "푸들ol", "류애", "수미지", "갬성언니", 
-]
-
-# -----------------------------
-# 2. 실제 글 URL 추출
-# -----------------------------
-def extract_item(item, i):
-    title = ""
+def extract_item(item, i, blog_name):
     blog_title_el = item.locator(".sds-comps-text")
     if blog_title_el.count() > 0:
-        blog_title = title_el.first.inner_text().strip()
+        blog_title = blog_title_el.first.inner_text().strip()
 
-    if blog_title in blog_names:
+    if blog_title == blog_name:
         return i
+    elif blog_name == "모모둥이":
+        blog_name = "아쿵아쿵"
+        if blog_name == blog_title:
+            return i
+    elif blog_name == "셀럽주부":
+        blog_name = "안탈리아"
+        if blog_name == blog_title:
+            return i
 
     return 0
 
-def parse_template_get_result(page, version):
-    templates = 
-                [
+def parse_template_get_result(page, version, blog_name):
+    templates = [
                     '[data-block-id="ugc/prs_template_ugc_influencer_collection_mo.ts"]', 
                     '[data-block-id="ugc/prs_template_ugc_influencer_participation_mo.ts"]'
                 ]
@@ -46,31 +46,13 @@ def parse_template_get_result(page, version):
     items = block.locator('[data-template-id="ugcItemMo"]')
     for i in range(items.count()):
         item = items.nth(i)
-        rank = extract_item(item, i+1)
+        rank = extract_item(item, i+1, blog_name)
         if rank > 0:
             return rank
     
     return 0
 
-# -----------------------------
-# 5. URL 핵심 비교 함수
-# -----------------------------
-def is_same_blog(url1, url2):
-    if not url1 or not url2:
-        return False
-    parts1 = urlparse(url1).path.split("/")
-    parts2 = urlparse(url2).path.split("/")
-    try:
-        blog1, log1 = parts1[1], parts1[4]
-        blog2, log2 = parts2[1], parts2[4]
-        return blog1 == blog2 and log1 == log2
-    except IndexError:
-        return False
-
-# -----------------------------
-# 6. 키워드 하나 처리 (순위 반환 + 디버그 출력)
-# -----------------------------
-def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
+def get_rank_for_keyword(page, keyword, blog_name):
     url = f"https://search.naver.com/search.naver?query={keyword}"
     page.goto(url)
     time.sleep(2)
@@ -80,13 +62,10 @@ def get_rank_for_keyword(page, keyword, target_url=None, target_title=None):
         print("템플릿 없음")
         return "블록미존재"
 
-    rank = parse_template(page, 0) if template == "collection" else parse_template(page, 1)
+    rank = parse_template_get_result(page, 0, blog_name) if template == "collection" else parse_template_get_result(page, 1, blog_name)
 
     return rank
 
-# -----------------------------
-# 7. 메인 실행
-# -----------------------------
 def main():
     df = pd.read_excel("input.xlsx")  # keyword, target_url, target_title 필수
 
@@ -108,21 +87,22 @@ def main():
 
         for idx, row in df.iterrows():
             keyword = row["keyword"]
+            blog_name = row["blog_name"]
 
             try:
-                rank = get_rank_for_keyword(page, keyword)
+                rank = get_rank_for_keyword(page, keyword, blog_name)
             except Exception as e:
                 print("[ERROR]", e)
                 rank = 0
 
             df.at[idx, "rank"] = rank
-            print(f"순위: {rank}")
+            print(f"키워드: {keyword}  인플루언서: {blog_name}  순위: {rank}" )
             time.sleep(2)
 
         browser.close()
 
     df.to_excel("output_rank.xlsx", index=False)
-    print("완료! output_rank_debug.xlsx 저장됨")
+    print("완료! output_rank.xlsx 저장됨")
 
 if __name__ == "__main__":
     main()
