@@ -2,10 +2,13 @@ import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
-# import datetime, os
+import datetime, os
+import yagmail
 
-# with open("scheduler.log", "a", encoding="utf-8") as f:
-#     f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+with open("scheduler.log", "a", encoding="utf-8") as f:
+    f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
 
 
 def detect_influencer_template(page):
@@ -67,11 +70,11 @@ def get_rank_for_keyword(page, keyword, blog_name):
     return rank
 
 def main():
-    df = pd.read_excel("input.xlsx")  # keyword, target_url, target_title 필수
+    df = pd.read_excel(os.path.join(BASE_DIR, "input.xlsx"))
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=False,
+            headless=True,
             args=["--disable-blink-features=AutomationControlled"]
         )
 
@@ -101,8 +104,22 @@ def main():
 
         browser.close()
 
-    df.to_excel("output_rank.xlsx", index=False)
+    df.to_excel(os.path.join(BASE_DIR, "output_rank.xlsx"), index=False)
     print("완료! output_rank.xlsx 저장됨")
+
+sender_email = "chanhojin94@gmail.com"
+app_password = os.getenv("APP_PASSWORD")
+
+receiver_email = "chano94@lifenbio.com"
+subject = "Ranking Fetch Output"
+contents = "Uploaded the output file"
+
+attachment = r"C:\Users\zasq1\python\fetch\keychal\output_rank.xlsx"
+
+yag = yagmail.SMTP(sender_email, app_password)
 
 if __name__ == "__main__":
     main()
+
+yag.send(to=receiver_email, subject=subject, contents=contents, attachments=attachment)
+print("Completed forwarding to designated place")
