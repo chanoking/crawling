@@ -1,0 +1,36 @@
+name: Fetch Ranking
+
+# 언제 실행할지 설정
+on:
+  schedule:
+    # 매일 오전 9시 실행 (UTC 기준, 한국 시간 18시)
+    - cron: "0 0 * * *"
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ 저장소 코드 가져오기
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Python 설치
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      # 3️⃣ 의존성 설치
+      - name: Install dependencies
+        run: |
+          pip install pandas playwright yagmail python-dotenv
+          playwright install
+
+      # 4️⃣ 스크립트 실행
+      - name: Run fetch_rank script
+        run: |
+          python keychal/app/fetch_rank_by_blog_title.py
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}

@@ -1,4 +1,8 @@
 input.xlsx
 inputB.xlsx
-~$Output_rankB.xlsx
+inputA.xlsx
 Output_rankB.xlsx
+.env
+scheduler.log
+output_rank.xlsx
+Output_rankA.xlsx

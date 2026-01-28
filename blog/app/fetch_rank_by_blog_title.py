@@ -109,7 +109,7 @@ def main():
     df = pd.read_excel(os.path.join(BASE_DIR, "..", "input.xlsx"))
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
@@ -133,7 +133,7 @@ def main():
     
     end_time = datetime.datetime.now()
     elapsed = end_time - start_time
-    df.to_excel("output_rank.xlsx", index=False)
+    df.to_excel(os.path.join(BASE_DIR, "..", "output_rank.xlsx"), index=False)
     print("완료!")
     print(f"실행시간: {elapsed}")
 
