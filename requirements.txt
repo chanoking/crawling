@@ -1,5 +1,5 @@
-numpy>=1.26.0
-pandas==2.0.3
+numpy==1.26.4
+pandas==2.2.2
 playwright==1.41.1
 yagmail>=0.14.256,<0.15.0
 pymongo==4.5.0
