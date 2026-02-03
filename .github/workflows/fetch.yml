@@ -34,6 +34,6 @@ jobs:
       - name: Run scraping script
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
-          MONG_URI: ${{ secrets.MONG_URI}}
+          MONGO_URI: ${{ secrets.MONGO_URI}}
         run: |
           python blog/app/fetch_state.py
