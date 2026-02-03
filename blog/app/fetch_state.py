@@ -19,8 +19,8 @@ uri = os.getenv("MONGO_URI")
 client = MongoClient(uri)
 db = client["lifenbio"]
 
-collection_keyword = db["foodcare_input_data(keywords)"]
-collection_url = db["foodcare_input_data(urls)"]
+collection_keyword = db["foodcare_input_for_keyword"]
+collection_url = db["foodcare_input_for_url"]
 
 cursor_key = collection_keyword.find({})
 cursor_url = collection_url.find({})
