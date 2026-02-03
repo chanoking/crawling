@@ -32,9 +32,14 @@ with open("scheduler.log", "a", encoding="utf-8") as f:
 
 paths = []
 
-for url in data_list_url:
+for doc in data_list_url:
+    url = doc.get("url")
+    if not url:
+        continue
+
     p = urlparse(url).path.strip("/")
     paths.append(p)
+
 
 # ----------------------------
 # 블록 셀렉터
