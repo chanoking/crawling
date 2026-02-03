@@ -17,7 +17,7 @@ load_dotenv(ENV_PATH)
 uri = os.getenv("MONGO_URI")
 
 client = MongoClient(uri)
-db = client["lifenbio"]
+db = client["LifeNBio"]
 
 collection_keyword = db["foodcare_input_for_keyword"]
 collection_url = db["foodcare_input_for_url"]
