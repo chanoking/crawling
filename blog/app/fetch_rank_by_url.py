@@ -1,18 +1,36 @@
-import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
 import datetime, os
+import yagmail
+from dotenv import load_dotenv
 
-# ============================
-# 기본 경로 설정
-# ============================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env") 
+
+blog_names = ["황둥강둥 다섯가족의 현실육아", "오리진그리드", "산엔들", "데일리 건강 기록", 
+              "국제 임상영양 연구 전문 분석 블로그", "PHYTONUTRI", "푸드케어 클레"]
+
+load_dotenv(ENV_PATH)
+
+df_urls = pd.read_excel(os.path.join(BASE_DIR, "..", "blog_input.xlsx"), sheet_name="url")
+urls = df_urls["url"].tolist()
+paths = []
+
+for url in urls:
+    p = urlparse(url).path.strip("/")
+    paths.append(p)
 
 # ============================
 # 개별 블로그 아이템 추출
 # ============================
-def extract_item(item):
+def get_value(item):
+    blog_name_sel = item.locator('[data-heatmap-target="articleSourceJSX_title"] span.sds-comps-text')
+    if blog_name_sel.count() > 0:
+        blog_name = blog_name_sel.first.inner_text()
+        if blog_name in blog_names:
+            return 1
+
     selectors = [
         'a[data-heatmap-target=".tit"]',
         'a[data-heatmap-target=".link"]',
@@ -22,12 +40,12 @@ def extract_item(item):
     for sel in selectors:
         link_el = item.locator(sel)
         if link_el.count() > 0:
-            return {
-                "url": link_el.first.get_attribute("href") or ""
-            }
+            url = link_el.first.get_attribute("href") or ""
+            p = urlparse(url).path.strip("/")
+            if p in paths:
+                return 1
 
-    return None
-
+    return 0
 
 # ============================
 # 블록 셀렉터 정의
@@ -50,16 +68,22 @@ def get_env_state(page):
     for sel in BLOCK_SELECTORS:
         if page.locator(sel).count() > 0:
             valid_blocks.append(sel)
+    # print(f"valid_blocks: {valid_blocks}")
 
     if not valid_blocks:
-        return None, []
+        return "블로그 블록 없음", []
+
+    env = "구분없음"
 
     if BLOCK_SELECTORS[0] in valid_blocks:
-        env = "단일스블"
+        block = page.locator(BLOCK_SELECTORS[0])
+        headerSel = block.locator('[data-template-id="header"] h2.sds-comps-text')
+        if headerSel.count() > 0:
+            header = headerSel.first.inner_text()
+            if "브랜드" not in header: 
+               env = "단일스블"
     elif any(sel in valid_blocks for sel in BLOCK_SELECTORS[1:4]):
         env = "다중스블"
-    else:
-        env = "구분없음"
 
     return env, valid_blocks
 
@@ -67,12 +91,17 @@ def get_env_state(page):
 # ============================
 # 블로그 템플릿 파싱
 # ============================
-def parse_blog_template(page):
-    posts = []
+def get_env_value(page, keyword):
+    page.goto(
+        f"https://search.naver.com/search.naver?query={keyword}",
+        wait_until="domcontentloaded"
+    )
+    page.wait_for_timeout(2000)
 
     env, valid_blocks = get_env_state(page)
+
     if not valid_blocks:
-        return posts, env
+        return 0, "블로그 블록 없음"
 
     for sel in valid_blocks:
         blocks = page.locator(sel)
@@ -83,73 +112,26 @@ def parse_blog_template(page):
 
             for j in range(items.count()):
                 item = items.nth(j)
-                data = extract_item(item)
-                if data:
-                    posts.append(data)
-
-    return posts, env
-
-
-# ============================
-# 동일 블로그 판단
-# ============================
-def is_same_blog(url1, url2):
-    if not url1 or not url2:
-        return False
-
-    try:
-        p1 = urlparse(url1).path.strip("/").split("/")
-        p2 = urlparse(url2).path.strip("/").split("/")
-        return p1[0] == p2[0] and p1[1] == p2[1]
-    except IndexError:
-        return False
-
-
-# ============================
-# 키워드별 노출 여부 판단
-# ============================
-def get_rank_for_keyword(page, keyword, target_url=None):
-    page.goto(
-        f"https://search.naver.com/search.naver?query={keyword}",
-        wait_until="domcontentloaded"
-    )
-    page.wait_for_timeout(2000)
-
-    posts, env = parse_blog_template(page)
-
-    if not posts:
-        return 0, "블로그 블록 없음"
-
-    for post in posts:
-        if is_same_blog(target_url, post["url"]):
-            return 1, env
-
+                val = get_value(item)
+                if val:
+                    return 1, env
     return 0, env
 
+# def get_view_for_keyword(page, keyword):
+#     page.goto(
+#         f"https://surffing.net/keyword/{keyword}",
+#         wait_until="domcontentloaded"
+#     )
 
-# ============================
-# Summary 시트 작성
-# ============================
-def write_summary(records: dict):
-    rows = []
+#     viewSel = page.locator('#keywordResults td.num-total')
 
-    for keyword, data in records.items():
-        rows.append({
-            "키워드": keyword,
-            "노출횟수": data["cnt"],
-            "환경": data["env"]
-        })
+#     view = 10
 
-    df_summary = pd.DataFrame(rows)
+#     if viewSel.count() > 0:
+#         raw = viewSel.first.inner_text().strip()
+#         view = int(raw.replace(",", ""))
 
-    with pd.ExcelWriter(
-        os.path.join(BASE_DIR, "..", "output_rank.xlsx"),
-        engine="openpyxl",
-        mode="a",
-        if_sheet_exists="replace"
-    ) as writer:
-        df_summary.to_excel(writer, sheet_name="Summary", index=False)
-
+#     return view    
 
 # ============================
 # 메인 실행부
@@ -157,8 +139,7 @@ def write_summary(records: dict):
 def main():
     start_time = datetime.datetime.now()
 
-    df = pd.read_excel(os.path.join(BASE_DIR, "..", "input.xlsx"))
-    records = {}
+    df = pd.read_excel(os.path.join(BASE_DIR, "..", "blog_input.xlsx"), sheet_name="keyword")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
@@ -172,36 +153,41 @@ def main():
         page = context.new_page()
 
         for idx, row in df.iterrows():
-            keyword_raw = row["keyword"]
-            target_url = row.get("url")
+            keyword = row["keyword"]
+            try:
+                exposure, env = get_env_value(page, keyword)
+                # view = get_view_for_keyword(page, keyword)
+            except Exception as e:
+                print("[ERROR]", e)
+                exposure, env = 0, "블로그 블록 없음"
+                # view = 10
 
-            exposure, env = get_rank_for_keyword(page, keyword_raw, target_url)
-
-            keyword = keyword_raw.replace(" ", "").upper()
-
-            if keyword not in records:
-                records[keyword] = {
-                    "cnt": 1 if exposure else 0,
-                    "env": env
-                }
-            else:
-                if exposure:
-                    records[keyword]["cnt"] += 1
-
+            # df.at[idx, "view"] = view
             df.at[idx, "exposure"] = exposure
             df.at[idx, "env"] = env
 
-            print(f"{keyword} → exposure={exposure}, env={env}")
-            time.sleep(2)
+            progress = round(((idx + 1) / len(df)) * 100, 2)
+            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}")
+
 
         browser.close()
 
-    df.to_excel(os.path.join(BASE_DIR, "..", "output_rank.xlsx"), index=False)
-    write_summary(records)
+    df.to_excel(os.path.join(BASE_DIR, "..", "blog_output_rank.xlsx"), index=False)
 
     elapsed = datetime.datetime.now() - start_time
     print(f"Completed! 실행시간: {elapsed}")
 
+sender_email = "chanhojin94@gmail.com"
+app_password = os.getenv("APP_PASSWORD")
+yag = yagmail.SMTP(sender_email, app_password)
+
+recipients = ["chano94@lifenbio.com", "jk022z@lifenbio.com"]
+subject = "Ranking Fetch Output"
+contents = "Uploaed the output file"
 
 if __name__ == "__main__":
     main()
+
+attachment = os.path.join(BASE_DIR, "..", "blog_output_rank.xlsx")
+yag.send(to=recipients, subject=subject, contents=contents, attachments=attachment)
+print("Completed forwoarding the file to wanted place")
