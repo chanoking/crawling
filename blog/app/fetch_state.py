@@ -5,6 +5,7 @@ import datetime, os
 import yagmail
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+from pymongo import MongoClient
 
 blog_names = ["푸드케어 클레"]
 
@@ -13,14 +14,25 @@ ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env")
 
 load_dotenv(ENV_PATH)
 
+uri = os.getenv("MONGO_URI")
+
+client = MongoClient(uri)
+db = client["lifenbio"]
+
+collection_keyword = db["foodcare_input_data(keywords)"]
+collection_url = db["foodcare_input_data(urls)"]
+
+cursor_key = collection_keyword.find({})
+cursor_url = collection_url.find({})
+
+data_list_url = list(cursor_url)
+
 with open("scheduler.log", "a", encoding="utf-8") as f:
     f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
 
-df_urls = pd.read_excel(os.path.join(BASE_DIR, "..", "foodcare_input.xlsx"), sheet_name="url")
-urls = df_urls["url"].tolist()
 paths = []
 
-for url in urls:
+for url in data_list_url:
     p = urlparse(url).path.strip("/")
     paths.append(p)
 
@@ -126,7 +138,8 @@ def parse_blog_template_get_value(page, keyword):
 # ----------------------------
 def main():
     start_time = datetime.datetime.now()
-    df = pd.read_excel(os.path.join(BASE_DIR, "..", "foodcare_input.xlsx"), sheet_name="keyword")
+    data_list_key = list(cursor_key)
+    df = pd.DataFrame(data_list_key)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
