@@ -1,23 +1,20 @@
-import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
 import datetime, os
-import yagmail
+import sys
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 from pymongo import MongoClient
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from common import get_db
+from common import forward
+
 blog_names = ["푸드케어 클레"]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env") 
 
-load_dotenv(ENV_PATH)
-
-uri = os.getenv("MONGO_URI")
-
-client = MongoClient(uri)
-db = client["LifeNBio"]
+db = get_db()
 
 collection_keyword = db["foodcare_input_for_keyword"]
 collection_url = db["foodcare_input_for_url"]
@@ -26,9 +23,6 @@ cursor_key = collection_keyword.find({})
 cursor_url = collection_url.find({})
 
 data_list_url = list(cursor_url)
-
-with open("scheduler.log", "a", encoding="utf-8") as f:
-    f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
 
 paths = []
 
@@ -170,24 +164,11 @@ def main():
     
     end_time = datetime.datetime.now()
     elapsed = end_time - start_time
-    df.to_excel(os.path.join(BASE_DIR, "..", "foodcare_output_rank.xlsx"), index=False)
+    df.to_excel(os.path.join(BASE_DIR, "..", "..", "output", "foodcare_output.xlsx"), index=False)
     print("완료!")
     print(f"실행시간: {elapsed}")
 
 
-sender_email = "chanhojin94@gmail.com"
-app_password = os.getenv("APP_PASSWORD")
-
-receiver_email = "chano94@lifenbio.com"
-subject = "Ranking Fetch Output"
-contents = "Uploaded the output file"
-
-attachment = os.path.join(BASE_DIR, "..", "foodcare_output_rank.xlsx")
-
-yag = yagmail.SMTP(sender_email, app_password)
-
 if __name__ == "__main__":
     main()
-
-yag.send(to=receiver_email, subject=subject, contents=contents, attachments=attachment)
-print("Completed forwarding to designated place")
+    forward("foodcare_output.xlsx")

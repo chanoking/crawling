@@ -51,6 +51,12 @@ def parse_blog_template(page):
     # 단일 블록인지 체크
     if BLOCK_SELECTORS[0] in validBlocks:
         env = "단일스블"
+        block = page.locator(BLOCK_SELECTORS[0])
+        headerSel = block.locator('[data-template-id="header"] h2.sds-comps-text')
+        if headerSel.count() > 0:
+            header = headerSel.first.inner_text()
+            if "브랜드" not in header: 
+               env = "단일스블"
 
     # 여러 블록인지 체크
     elif any(sel in validBlocks for sel in BLOCK_SELECTORS[1:4]):
@@ -88,7 +94,7 @@ def parse_blog_template(page):
 # ----------------------------
 def get_rank_for_keyword(page, keyword):
     page.goto(
-        f"https://search.naver.com/search.naver?query={keyword}",
+        f"https://m.search.naver.com/search.naver?query={keyword}",
         wait_until="domcontentloaded"
     )
     page.wait_for_timeout(2000)
@@ -106,7 +112,7 @@ def get_rank_for_keyword(page, keyword):
 # ----------------------------
 def main():
     start_time = datetime.datetime.now()
-    df = pd.read_excel(os.path.join(BASE_DIR, "..", "input.xlsx"))
+    df = pd.read_excel(os.path.join(BASE_DIR, "..", "foodcare_input.xlsx"))
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -133,7 +139,7 @@ def main():
     
     end_time = datetime.datetime.now()
     elapsed = end_time - start_time
-    df.to_excel(os.path.join(BASE_DIR, "..", "output_rank.xlsx"), index=False)
+    df.to_excel(os.path.join(BASE_DIR, "..", "foodcare_output_rank.xlsx"), index=False)
     print("완료!")
     print(f"실행시간: {elapsed}")
 
@@ -145,7 +151,7 @@ receiver_email = "chano94@lifenbio.com"
 subject = "Ranking Fetch Output"
 contents = "Uploaded the output file"
 
-attachment = os.path.join(BASE_DIR, "..", "output_rank.xlsx")
+attachment = os.path.join(BASE_DIR, "..", "foodcare_output_rank.xlsx")
 
 yag = yagmail.SMTP(sender_email, app_password)
 

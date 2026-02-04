@@ -91,6 +91,22 @@ def get_rank_for_keyword(page, keyword, target_url=None):
 
     return rank
 
+# def get_view_for_keyword(page, keyword):
+#     page.goto(
+#         f"https://surffing.net/keyword/{keyword}",
+#         wait_until="domcontentloaded"
+#     )
+
+#     viewSel = page.locator('#keywordResults td.num-total')
+
+#     view = 10
+
+#     if viewSel.count() > 0:
+#         raw = viewSel.first.inner_text().strip()
+#         view = int(raw.replace(",", ""))
+
+#     return view    
+
 # -----------------------------
 # 7. 메인 실행
 # -----------------------------
@@ -99,7 +115,7 @@ def main():
     df = pd.read_excel(os.path.join(BASE_DIR, "..", "keychal_input.xlsx")) 
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,
+            headless=False,
             args=["--disable-blink-features=AutomationControlled"]
         )
 
@@ -115,14 +131,17 @@ def main():
 
         for idx, row in df.iterrows():
             keyword = row["keyword"]
-            target_url = row.get("url")
+            url = row.get("url")
 
             try:
-                rank = get_rank_for_keyword(page, keyword, target_url)
+                rank = get_rank_for_keyword(page, keyword, url)
+                # view = get_view_for_keyword(page, keyword)
             except Exception as e:
                 print("[ERROR]", e)
                 rank = 0
+                # view = 10
 
+            # df.at[idx, "view"] = view
             df.at[idx, "rank"] = rank
             print(f"keyword: {keyword}  순위: {rank}")
 

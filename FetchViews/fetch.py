@@ -1,6 +1,7 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
 import datetime, os
+import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -9,6 +10,7 @@ def get_view_for_keyword(page, keyword):
         f"https://surffing.net/keyword/{keyword}",
         wait_until="domcontentloaded"
     )
+    time.sleep(2)
 
     viewSel = page.locator('#keywordResults td.num-total')
 
