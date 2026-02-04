@@ -4,15 +4,19 @@ from playwright.sync_api import sync_playwright
 import datetime, os
 import yagmail
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env") 
 
 load_dotenv(ENV_PATH)
+uri = os.getenv("MONGO_URI")
+client = MongoClient(uri)
+db = client["LifeNBio"]
 
-with open("scheduler.log", "a", encoding="utf-8") as f:
-    f.write(f"{datetime.datetime.now()} 실행됨, cwd={os.getcwd()}\n")
-
+collection_input = db["keychal_input"]
+cursor = collection_input.find({})
+data_list_input = list(cursor)
 
 def detect_influencer_template(page):
     if page.locator(
@@ -42,6 +46,10 @@ def extract_item(item, i, blog_name):
             return i
     elif blog_name == "봉봉댁":
         blog_name = "v봉봉댁v"
+        if blog_name == blog_title:
+            return i
+    elif blog_name == "갬성주부":
+        blog_name = "갬성언니"
         if blog_name == blog_title:
             return i
 
@@ -78,7 +86,7 @@ def get_rank_for_keyword(page, keyword, blog_name):
 
 def main():
     start_time = datetime.datetime.now()
-    df = pd.read_excel(os.path.join(BASE_DIR, "..", "input.xlsx"))
+    df = pd.DataFrame(data_list_input)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -126,12 +134,12 @@ receiver_email = "chano94@lifenbio.com"
 subject = "Ranking Fetch Output"
 contents = "Uploaded the output file"
 
-attachment = os.path.join(BASE_DIR, "..", "output_rank.xlsx")
 
 yag = yagmail.SMTP(sender_email, app_password)
 
 if __name__ == "__main__":
     main()
 
+attachment = os.path.join(BASE_DIR, "..", "output_rank.xlsx")
 yag.send(to=receiver_email, subject=subject, contents=contents, attachments=attachment)
 print("Completed forwarding to designated place")
