@@ -85,7 +85,7 @@ def get_value(item):
             p = urlparse(url).path.strip("/")
             if p in paths:
                 cnt += 1
-                return 1
+                return cnt
 
     return cnt
 
