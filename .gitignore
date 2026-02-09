@@ -1,8 +1,2 @@
-input.xlsx
-inputB.xlsx
-inputA.xlsx
-Output_rankB.xlsx
 .env
-scheduler.log
-output_rank.xlsx
-Output_rankA.xlsx
+__pycache__/

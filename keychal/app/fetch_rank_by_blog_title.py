@@ -2,17 +2,14 @@ import time
 import pandas as pd
 from playwright.sync_api import sync_playwright
 import datetime, os
-import yagmail
-from dotenv import load_dotenv
-from pymongo import MongoClient
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from common import get_db
+from common import forward
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env") 
 
-load_dotenv(ENV_PATH)
-uri = os.getenv("MONGO_URI")
-client = MongoClient(uri)
-db = client["LifeNBio"]
+db = get_db()
 
 collection_input = db["keychal_input"]
 cursor = collection_input.find({})
@@ -121,25 +118,11 @@ def main():
         browser.close()
 
     end_time = datetime.datetime.now()
-    df.to_excel(os.path.join(BASE_DIR, "..", "output_rank.xlsx"), index=False)
-    print("완료! output_rank.xlsx 저장됨")
+    df.to_excel(os.path.join(BASE_DIR, "..", "..", "output", "keychal_output.xlsx"), index=False)
+    print("완료! keychal_output.xlsx 저장됨")
     elapsed = end_time - start_time
     print(f"실행시간: {elapsed}")
 
-
-sender_email = "chanhojin94@gmail.com"
-app_password = os.getenv("APP_PASSWORD")
-
-receiver_email = "chano94@lifenbio.com"
-subject = "Ranking Fetch Output"
-contents = "Uploaded the output file"
-
-
-yag = yagmail.SMTP(sender_email, app_password)
-
 if __name__ == "__main__":
     main()
-
-attachment = os.path.join(BASE_DIR, "..", "output_rank.xlsx")
-yag.send(to=receiver_email, subject=subject, contents=contents, attachments=attachment)
-print("Completed forwarding to designated place")
+    forward("keychal_output.xlsx")

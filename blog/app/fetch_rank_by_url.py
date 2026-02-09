@@ -2,22 +2,32 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
 import datetime, os
-import yagmail
-from dotenv import load_dotenv
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from common import get_db
+from common import forward
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(BASE_DIR, "..", "..", ".env") 
 
 blog_names = ["황둥강둥 다섯가족의 현실육아", "오리진그리드", "산엔들", "데일리 건강 기록", 
               "국제 임상영양 연구 전문 분석 블로그", "PHYTONUTRI", "푸드케어 클레"]
 
-load_dotenv(ENV_PATH)
+db = get_db()
+collection_input_item_keyword = db["blog_input"]
+collection_input_url = db["blog_input_url"]
+cursor_input = collection_input_item_keyword.find({})
+cursor_input_url = collection_input_url.find({})
 
-df_urls = pd.read_excel(os.path.join(BASE_DIR, "..", "blog_input.xlsx"), sheet_name="url")
-urls = df_urls["url"].tolist()
+data_list_input = list(cursor_input)
+data_list_input_url = list(cursor_input_url)
+
 paths = []
 
-for url in urls:
+for doc in data_list_input_url:
+    url = doc.get("url")
+    if not url:
+        continue
+
     p = urlparse(url).path.strip("/")
     paths.append(p)
 
@@ -68,7 +78,6 @@ def get_env_state(page):
     for sel in BLOCK_SELECTORS:
         if page.locator(sel).count() > 0:
             valid_blocks.append(sel)
-    # print(f"valid_blocks: {valid_blocks}")
 
     if not valid_blocks:
         return "블로그 블록 없음", []
@@ -93,7 +102,7 @@ def get_env_state(page):
 # ============================
 def get_env_value(page, keyword):
     page.goto(
-        f"https://search.naver.com/search.naver?query={keyword}",
+        f"https://m.search.naver.com/search.naver?query={keyword}",
         wait_until="domcontentloaded"
     )
     page.wait_for_timeout(2000)
@@ -117,32 +126,33 @@ def get_env_value(page, keyword):
                     return 1, env
     return 0, env
 
-# def get_view_for_keyword(page, keyword):
-#     page.goto(
-#         f"https://surffing.net/keyword/{keyword}",
-#         wait_until="domcontentloaded"
-#     )
+def get_view_for_keyword(page, keyword):
+    page.goto(
+        f"https://surffing.net/keyword/{keyword}",
+        wait_until="domcontentloaded"
+    )
 
-#     viewSel = page.locator('#keywordResults td.num-total')
+    viewSel = page.locator('#keywordResults td.num-total')
 
-#     view = 10
+    view = 10
+    try:
+        if viewSel.count() > 0:
+            raw = viewSel.first.inner_text().strip()
+            view = int(raw.replace(",", ""))
+    except:
+        return view
 
-#     if viewSel.count() > 0:
-#         raw = viewSel.first.inner_text().strip()
-#         view = int(raw.replace(",", ""))
-
-#     return view    
+    return view    
 
 # ============================
 # 메인 실행부
 # ============================
 def main():
     start_time = datetime.datetime.now()
-
-    df = pd.read_excel(os.path.join(BASE_DIR, "..", "blog_input.xlsx"), sheet_name="keyword")
+    df = pd.DataFrame(data_list_input)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
@@ -153,41 +163,30 @@ def main():
         page = context.new_page()
 
         for idx, row in df.iterrows():
-            keyword = row["keyword"]
+            keyword = row["Keyword"]
             try:
                 exposure, env = get_env_value(page, keyword)
-                # view = get_view_for_keyword(page, keyword)
+                view = get_view_for_keyword(page, keyword)
             except Exception as e:
                 print("[ERROR]", e)
                 exposure, env = 0, "블로그 블록 없음"
-                # view = 10
+                view = 10
 
-            # df.at[idx, "view"] = view
+            df.at[idx, "view"] = view
             df.at[idx, "exposure"] = exposure
             df.at[idx, "env"] = env
 
             progress = round(((idx + 1) / len(df)) * 100, 2)
-            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}")
+            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}, view={view}")
 
 
         browser.close()
 
-    df.to_excel(os.path.join(BASE_DIR, "..", "blog_output_rank.xlsx"), index=False)
+    df.to_excel(os.path.join(BASE_DIR, "..", "..", "output", "blog_output.xlsx"), index=False)
 
     elapsed = datetime.datetime.now() - start_time
     print(f"Completed! 실행시간: {elapsed}")
 
-sender_email = "chanhojin94@gmail.com"
-app_password = os.getenv("APP_PASSWORD")
-yag = yagmail.SMTP(sender_email, app_password)
-
-recipients = ["chano94@lifenbio.com", "jk022z@lifenbio.com"]
-subject = "Ranking Fetch Output"
-contents = "Uploaed the output file"
-
 if __name__ == "__main__":
     main()
-
-attachment = os.path.join(BASE_DIR, "..", "blog_output_rank.xlsx")
-yag.send(to=recipients, subject=subject, contents=contents, attachments=attachment)
-print("Completed forwoarding the file to wanted place")
+    forward("blog_output.xlsx")
