@@ -126,23 +126,23 @@ def get_env_value(page, keyword):
                     return 1, env
     return 0, env
 
-def get_view_for_keyword(page, keyword):
-    page.goto(
-        f"https://surffing.net/keyword/{keyword}",
-        wait_until="domcontentloaded"
-    )
+# def get_view_for_keyword(page, keyword):
+#     page.goto(
+#         f"https://surffing.net/keyword/{keyword}",
+#         wait_until="domcontentloaded"
+#     )
 
-    viewSel = page.locator('#keywordResults td.num-total')
+#     viewSel = page.locator('#keywordResults td.num-total')
 
-    view = 10
-    try:
-        if viewSel.count() > 0:
-            raw = viewSel.first.inner_text().strip()
-            view = int(raw.replace(",", ""))
-    except:
-        return view
+#     view = 10
+#     try:
+#         if viewSel.count() > 0:
+#             raw = viewSel.first.inner_text().strip()
+#             view = int(raw.replace(",", ""))
+#     except:
+#         return view
 
-    return view    
+#     return view    
 
 # ============================
 # 메인 실행부
@@ -163,21 +163,21 @@ def main():
         page = context.new_page()
 
         for idx, row in df.iterrows():
-            keyword = row["Keyword"]
+            keyword = row["keyword"]
             try:
                 exposure, env = get_env_value(page, keyword)
-                view = get_view_for_keyword(page, keyword)
+                # view = get_view_for_keyword(page, keyword)
             except Exception as e:
                 print("[ERROR]", e)
                 exposure, env = 0, "블로그 블록 없음"
-                view = 10
+                # view = 10
 
-            df.at[idx, "view"] = view
+            # df.at[idx, "view"] = view
             df.at[idx, "exposure"] = exposure
             df.at[idx, "env"] = env
 
             progress = round(((idx + 1) / len(df)) * 100, 2)
-            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}, view={view}")
+            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}")
 
 
         browser.close()
