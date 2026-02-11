@@ -37,6 +37,7 @@ receiver_email = "chano94@lifenbio.com"
 subject = "결과파일"
 contents = ""
 
+receiver_emails = ["chano94@lifenbio.com", "jk022z@lifenbio.com"]
 yag = yagmail.SMTP(sender_email, app_password)
 
 # ----------------------------------------------------------
@@ -47,7 +48,11 @@ def forward(file_name):
     print("Completed forwarding to designated place")
 
 # ----------------------------------------------------------
-
+def forward_to_other(file_name):
+    attachment = os.path.join(BASE_DIR, "output", file_name)
+    yag.send(to=receiver_emails, subject=subject, contents=contents, attachments=attachment)
+    print("Completed forwarding to designated places")
+#------------------------------------------------------------ 
 def make_signature(timestamp, method, uri, secret_key):
     message = f"{timestamp}.{method}.{uri}"
     hash = hmac.new(

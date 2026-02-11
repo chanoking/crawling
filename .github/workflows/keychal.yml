@@ -40,3 +40,4 @@ jobs:
           MONGO_URI: ${{ secrets.MONGO_URI}}
         run: |
           python keychal/app/fetch_rank_by_blog_title.py
+          python keychal/app/sponsored.py
