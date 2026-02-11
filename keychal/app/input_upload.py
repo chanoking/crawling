@@ -9,11 +9,12 @@ from common import get_db
 app = FastAPI()
 db = get_db()
 collection = db["sponsored_input"]
+collection_foodcare = db["foodcare_input_for_url"]
 
-@app.post("/upload")
-async def upload_excel(
-    file: UploadFile = File(...),  # 필수 업로드
-    replace: bool = Form(False)    # 기존 데이터 교체 여부
+@app.post("/sponsored_upload")
+async def upload_keycahl_excel(
+    file: UploadFile = File(...),
+    replace: bool = Form(True)
 ):
     try:
         # 엑셀 읽기
@@ -31,6 +32,33 @@ async def upload_excel(
 
         # 데이터 삽입
         collection.insert_many(data)
+
+        return {"status": "ok", "count": len(data), "replace": replace}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/foodcare_upload")
+async def upload_foodcare_excel(
+    file: UploadFile = File(...),
+    replace: bool = Form(True)
+):
+    try:
+        # 엑셀 읽기
+        df = pd.read_excel(file.file)
+
+        # 필수 컬럼 체크
+        if not {"url"}.issubset(df.columns):
+            return JSONResponse(status_code=400, content={"error": "url 컬럼 필요"})
+
+        data = df.to_dict(orient="records")
+
+        # 기존 데이터 삭제 후 교체
+        if replace:
+            collection_foodcare.delete_many({})
+
+        # 데이터 삽입
+        collection_foodcare.insert_many(data)
 
         return {"status": "ok", "count": len(data), "replace": replace}
 
