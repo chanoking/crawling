@@ -29,9 +29,8 @@ async def upload_keycahl_excel(
         # 기존 데이터 삭제 후 교체
         if replace:
             collection.delete_many({})
-
-        # 데이터 삽입
-        collection.insert_many(data)
+        else:
+            collection.insert_many(data)
 
         return {"status": "ok", "count": len(data), "replace": replace}
 
