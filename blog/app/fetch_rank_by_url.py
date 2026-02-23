@@ -189,4 +189,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    forward("blog_output.xlsx")
+    forward("blog_output.xlsx", "블로그 결과파일")

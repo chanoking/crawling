@@ -107,4 +107,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    forward_to_other("sponsor_output.xlsx")
+    forward_to_other("sponsor_output.xlsx", "키챌_협찬 결과파일")

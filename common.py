@@ -42,13 +42,13 @@ yag = yagmail.SMTP(sender_email, app_password)
 
 # ----------------------------------------------------------
 
-def forward(file_name):
+def forward(file_name, subject):
     attachment = os.path.join(BASE_DIR, "output", file_name)
     yag.send(to=receiver_email, subject=subject, contents=contents, attachments=attachment)
     print("Completed forwarding to designated place")
 
 # ----------------------------------------------------------
-def forward_to_other(file_name):
+def forward_to_other(file_name, subject):
     attachment = os.path.join(BASE_DIR, "output", file_name)
     yag.send(to=receiver_emails, subject=subject, contents=contents, attachments=attachment)
     print("Completed forwarding to designated places")
@@ -62,7 +62,7 @@ def make_signature(timestamp, method, uri, secret_key):
     ).digest()
     return base64.b64encode(hash).decode()
 
-
+#------------------------------------------------------------
 def get_keyword_volume(keyword):
     timestamp = str(int(time.time() * 1000))
     signature = make_signature(timestamp, METHOD, URI, SECRET_KEY)

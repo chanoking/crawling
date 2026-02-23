@@ -4,7 +4,6 @@ import datetime, os
 import sys
 from dotenv import load_dotenv
 from urllib.parse import urlparse
-from pymongo import MongoClient
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from common import get_db
@@ -171,4 +170,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    forward("foodcare_output.xlsx")
+    forward("foodcare_output.xlsx", "푸드케어 결과파일")

@@ -6,6 +6,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from common import get_db
 from common import forward
+from common import get_keyword_volume
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -58,14 +59,15 @@ def parse_template_get_result(page, version, blog_name):
                     '[data-block-id="ugc/prs_template_ugc_influencer_participation_mo.ts"]'
                 ]
     block = page.locator(templates[version])
+    y = block.bounding_box()["y"]
     items = block.locator('[data-template-id="ugcItemMo"]')
     for i in range(items.count()):
         item = items.nth(i)
         rank = extract_item(item, i+1, blog_name)
         if rank > 0:
-            return rank
+            return rank, y
     
-    return 0
+    return 0, y
 
 def get_rank_for_keyword(page, keyword, blog_name):
     url = f"https://search.naver.com/search.naver?query={keyword}"
@@ -75,12 +77,21 @@ def get_rank_for_keyword(page, keyword, blog_name):
     template = detect_influencer_template(page)
     if not template:
         print("템플릿 없음")
-        return "블록미존재"
+        return "블록미존재", "알수없음"
 
-    rank = parse_template_get_result(page, 0, blog_name) if template == "collection" else parse_template_get_result(page, 1, blog_name)
+    rank, y = parse_template_get_result(page, 0, blog_name) if template == "collection" else parse_template_get_result(page, 1, blog_name)
 
-    return rank
+    return rank, y
 
+def get_key_vol(keyword):
+    data = get_keyword_volume(keyword)
+    for row in data.get("keywordList", []):
+        if row["relKeyword"] == keyword:
+            return row["monthlyPcQcCnt"], row["monthlyMobileQcCnt"], row["compIdx"]
+    
+    return 10, 10, "알수없음"
+            
+    
 def main():
     start_time = datetime.datetime.now()
     df = pd.DataFrame(data_list_input)
@@ -106,14 +117,22 @@ def main():
             blog_name = row["blog_name"]
 
             try:
-                rank = get_rank_for_keyword(page, keyword, blog_name)
+                rank, y = get_rank_for_keyword(page, keyword, blog_name)
+                pc, mobile, competition = get_key_vol(keyword)
             except Exception as e:
                 print("[ERROR]", e)
                 rank = 0
+                y = "확인불가"
+                pc = "확인불가"
+                mobile = "확인불가"
+                competition = "확인불가"
 
             df.at[idx, "rank"] = rank
-            print(f"키워드: {keyword}  인플루언서: {blog_name}  순위: {rank}" )
-            time.sleep(2)
+            df.at[idx, "y"] = y
+            df.at[idx, "pc"] = pc 
+            df.at[idx, "mobile"] = mobile
+            df.at[idx, "competition"] = competition
+            print(f"키워드: {keyword}  인플루언서: {blog_name}  순위: {rank} y: {y} mobile: {mobile}" )
 
         browser.close()
 
@@ -125,4 +144,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    forward("keychal_output.xlsx")
+    forward("keychal_output.xlsx", "키챌 결과파일")
