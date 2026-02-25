@@ -84,12 +84,13 @@ def get_rank_for_keyword(page, keyword, blog_name):
     return rank, y
 
 def get_key_vol(keyword):
-    data = get_keyword_volume(keyword)
-    for row in data.get("keywordList", []):
-        if row["relKeyword"] == keyword:
-            return row["monthlyPcQcCnt"], row["monthlyMobileQcCnt"], row["compIdx"]
-    
-    return 10, 10, "알수없음"
+    try:
+        data = get_keyword_volume(keyword)
+        for row in data.get("keywordList", []):
+            if row["relKeyword"] == keyword:
+                return row["monthlyPcQcCnt"], row["monthlyMobileQcCnt"], row["compIdx"]
+    except:    
+        return 10, 10, "알수없음"
             
     
 def main():

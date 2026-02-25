@@ -1,11 +1,11 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
-import datetime, os
+import os, datetime
+from datetime import date
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from common import get_db
-from common import forward
+from common import get_db, get_keyword_volume, upload
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,7 +13,7 @@ blog_names = ["황둥강둥 다섯가족의 현실육아", "오리진그리드",
               "국제 임상영양 연구 전문 분석 블로그", "PHYTONUTRI", "푸드케어 클레"]
 
 db = get_db()
-collection_input_item_keyword = db["blog_input"]
+collection_input_item_keyword = db["Keywords"]
 collection_input_url = db["blog_input_url"]
 cursor_input = collection_input_item_keyword.find({})
 cursor_input_url = collection_input_url.find({})
@@ -126,23 +126,16 @@ def get_env_value(page, keyword):
                     return 1, env
     return 0, env
 
-# def get_view_for_keyword(page, keyword):
-#     page.goto(
-#         f"https://surffing.net/keyword/{keyword}",
-#         wait_until="domcontentloaded"
-#     )
-
-#     viewSel = page.locator('#keywordResults td.num-total')
-
-#     view = 10
-#     try:
-#         if viewSel.count() > 0:
-#             raw = viewSel.first.inner_text().strip()
-#             view = int(raw.replace(",", ""))
-#     except:
-#         return view
-
-#     return view    
+def get_key_vol(keyword):
+    try:
+        data = get_keyword_volume(keyword)
+        for row in data.get("keywordList", []):
+            if row["relKeyword"] == keyword:
+                return row["monthlyPcQcCnt"], row["monthlyMobileQcCnt"], row["compIdx"]
+    except Exception as e:
+        print(f"[ERROR get_key_vol] {e}")
+    # 항상 튜플 반환
+    return 10, 10, "알수없음"
 
 # ============================
 # 메인 실행부
@@ -166,27 +159,33 @@ def main():
             keyword = row["keyword"]
             try:
                 exposure, env = get_env_value(page, keyword)
-                # view = get_view_for_keyword(page, keyword)
+                pc, mobile, competition = get_key_vol(keyword)
             except Exception as e:
                 print("[ERROR]", e)
                 exposure, env = 0, "블로그 블록 없음"
-                # view = 10
+                pc, mobile, competition = 0, 0, "알수없음"
 
-            # df.at[idx, "view"] = view
-            df.at[idx, "exposure"] = exposure
-            df.at[idx, "env"] = env
+            new_state = {
+                "date": datetime.datetime.combine(datetime.date.today(), datetime.time.min),
+                "mobile": mobile,
+                "pc": pc,
+                "competition": competition,
+                "exposure": exposure,
+                "env": env
+            }
+
+            if new_state:  # None 체크
+                upload(keyword, new_state)
+            else:
+                print(f"[WARN] new_state is None for keyword: {keyword}")
 
             progress = round(((idx + 1) / len(df)) * 100, 2)
-            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}")
-
+            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}, mobile={mobile}")
 
         browser.close()
-
-    df.to_excel(os.path.join(BASE_DIR, "..", "..", "output", "blog_output.xlsx"), index=False)
 
     elapsed = datetime.datetime.now() - start_time
     print(f"Completed! 실행시간: {elapsed}")
 
 if __name__ == "__main__":
     main()
-    forward("blog_output.xlsx", "블로그 결과파일")
