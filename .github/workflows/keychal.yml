@@ -37,7 +37,10 @@ jobs:
       - name: Run scraping script
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
-          MONGO_URI: ${{ secrets.MONGO_URI}}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          NAVER_CUSTOMER_ID: ${{ secrets.NAVER_CUSTOMER_ID}}
+          NAVER_SECRET_KEY: ${{ secrets.NAVER_SECRET_KEY}}
+          NAVER_API_KEY: ${{ secrets.NAVER_API_KEY}}
         run: |
           python keychal/app/fetch_rank_by_blog_title.py
           python keychal/app/sponsored.py
