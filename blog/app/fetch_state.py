@@ -86,11 +86,45 @@ def get_value(item):
 # 블로그 템플릿 파싱
 # ----------------------------
 def parse_blog_template_get_value(page, keyword):
+    page.goto("https://m.naver.com")
+
+    # 검색창 열기
+    page.click("#MM_SEARCH_FAKE")
+
+    # input 활성화 기다리기
+    page.wait_for_selector("#query:visible")
+
+    # 입력
+    page.type("#query", keyword, delay=100)
+
+    page.wait_for_selector("#sb-ac-recomm-wrap li.u_atcp_l")
+
+    page.wait_for_timeout(500)
+
+    keywords = page.locator(
+        "#sb-ac-recomm-wrap li.u_atcp_l"
+    ).evaluate_all(
+        "els => els.map(el => el.getAttribute('data-query'))"
+    )
+
+    try:
+        if not keywords:
+            autocomplete_keyword = keyword
+        else:
+            matchKeywords = list(filter(lambda x: x.replace(" ", "") == keyword, keywords))
+            if not matchKeywords:
+                autocomplete_keyword = keyword
+            else:
+                autocomplete_keyword = matchKeywords[0]
+    except:
+        autocomplete_keyword = keyword
+
+    print(f"자동완성: {autocomplete_keyword}")
+
     page.goto(
-        f"https://search.naver.com/search.naver?query={keyword}",
+        f"https://search.naver.com/search.naver?query={autocomplete_keyword}",
         wait_until="domcontentloaded"
     )
-    page.wait_for_timeout(2000)
 
     validBlocks = detect_blocks(page, BLOCK_SELECTORS)
 
