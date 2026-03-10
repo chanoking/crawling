@@ -87,10 +87,10 @@ def get_keyword_volume(keyword):
     res.raise_for_status()
     return res.json()
 #----------------------------------------------------------------
-def upload(keyword, state):
-    keywords_collection = db["Keywords"]
-    keywords_collection.update_one(
-        {"keyword": keyword},
-        {"$push": {"state": state}},
+def upload(state, collection):
+    collection = db[collection]
+    collection.update_one(
+        {"keyword": state["keyword"], "date": state["date"]},
+        {"$set": state},
         upsert=True
     )
