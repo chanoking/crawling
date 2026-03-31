@@ -10,6 +10,7 @@ app = FastAPI()
 db = get_db()
 collection = db["sponsored_input"]
 collection_foodcare = db["foodcare_input_for_url"]
+collection_free = db["Free"]
 
 @app.post("/sponsored_upload")
 async def upload_keycahl_excel(
@@ -61,5 +62,28 @@ async def upload_foodcare_excel(
 
         return {"status": "ok", "count": len(data), "replace": replace}
 
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/free_upload")
+async def upload_free(
+    file: UploadFile = File(...),
+    replace: bool = Form(True)
+):
+    try:
+        df = pd.read_excel(file.file)
+
+        if not {"키워드"}.issubset(df.columns):
+            return JSONResponse(status_code=400, content={"error": "keyword 컬럼 필요"})
+
+        data = df.to_dict(orient="records")
+
+        if replace:
+            collection_free.delete_many({})
+
+        collection_free.insert_many(data)
+
+        return {"status": "ok", "count": len(data), "replace": replace}
+    
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
