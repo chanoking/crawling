@@ -44,3 +44,4 @@ jobs:
         run: |
           python keychal/app/fetch_rank_by_blog_title.py
           python keychal/app/sponsored.py
+          python blog/app/fetch_state_by_blog_name.py
