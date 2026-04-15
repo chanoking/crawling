@@ -10,26 +10,15 @@ from common import get_db, get_keyword_volume, upload
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 blog_names = ["황둥강둥 다섯가족의 현실육아", "오리진그리드", "산엔들", "데일리 건강 기록", 
-              "국제 임상영양 연구 전문 분석 블로그", "PHYTONUTRI", "푸드케어 클레"]
+              "국제 임상영양 연구 전문 분석 블로그", "PHYTONUTRI", "푸드케어 클레", "건강한 삶을 위한 영양백과"]
 
 db = get_db()
-collection_input_item_keyword = db["Keywords"]
-collection_input_url = db["blog_input_url"]
-cursor_input = collection_input_item_keyword.find({})
-cursor_input_url = collection_input_url.find({})
+collection_keywords = db["Blog_Keywords"]
+cursor_keywords = collection_keywords.find({})
 
-data_list_input = list(cursor_input)
-data_list_input_url = list(cursor_input_url)
+keywords = list(cursor_keywords)
 
 paths = []
-
-for doc in data_list_input_url:
-    url = doc.get("url")
-    if not url:
-        continue
-
-    p = urlparse(url).path.strip("/")
-    paths.append(p)
 
 # ============================
 # 개별 블로그 아이템 추출
@@ -40,20 +29,6 @@ def get_value(item):
         blog_name = blog_name_sel.first.inner_text()
         if blog_name in blog_names:
             return 1
-
-    selectors = [
-        'a[data-heatmap-target=".tit"]',
-        'a[data-heatmap-target=".link"]',
-        'a[data-heatmap-target=".imgtitlelink"]',
-    ]
-
-    for sel in selectors:
-        link_el = item.locator(sel)
-        if link_el.count() > 0:
-            url = link_el.first.get_attribute("href") or ""
-            p = urlparse(url).path.strip("/")
-            if p in paths:
-                return 1
 
     return 0
 
@@ -85,10 +60,10 @@ def get_env_state(page):
     env = "구분없음"
 
     if BLOCK_SELECTORS[0] in valid_blocks:
-        block = page.locator(BLOCK_SELECTORS[0])
-        headerSel = block.locator('[data-template-id="header"] h2.sds-comps-text')
-        if headerSel.count() > 0:
-            header = headerSel.first.inner_text()
+        block_locator = page.locator(BLOCK_SELECTORS[0])
+        header_locator = block_locator.locator('[data-template-id="header"] h2.sds-comps-text')
+        if header_locator.count() > 0:
+            header = header_locator.first.inner_text()
             if "브랜드" not in header: 
                env = "단일스블"
     elif any(sel in valid_blocks for sel in BLOCK_SELECTORS[1:4]):
@@ -105,26 +80,29 @@ def get_env_value(page, keyword):
         f"https://m.search.naver.com/search.naver?query={keyword}",
         wait_until="domcontentloaded"
     )
-    page.wait_for_timeout(2000)
+
+    page.wait_for_selector(
+        "div[data-block-id]",
+        timeout=5000
+    )
 
     env, valid_blocks = get_env_state(page)
 
     if not valid_blocks:
         return 0, "블로그 블록 없음"
 
+    cnt = 0
     for sel in valid_blocks:
         blocks = page.locator(sel)
 
         for i in range(blocks.count()):
-            block = blocks.nth(i)
-            items = block.locator('[data-template-id="ugcItem"]')
-
-            for j in range(items.count()):
-                item = items.nth(j)
-                val = get_value(item)
-                if val:
-                    return 1, env
-    return 0, env
+            block_locator = blocks.nth(i)
+            items_locator = block_locator.locator('[data-template-id="ugcItem"]')
+            for j in range(items_locator.count()):
+                item = items_locator.nth(j)
+                cnt += get_value(item)
+            
+    return cnt, env
 
 def get_key_vol(keyword):
     try:
@@ -142,7 +120,7 @@ def get_key_vol(keyword):
 # ============================
 def main():
     start_time = datetime.datetime.now()
-    df = pd.DataFrame(data_list_input)
+    df = pd.DataFrame(keywords)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -155,32 +133,32 @@ def main():
         )
         page = context.new_page()
 
-        for idx, row in df.iterrows():
-            keyword = row["keyword"]
+        for idx, row in enumerate(df.itertuples()):
+            keyword = row.keyword
+            itemId = row.itemId
             try:
-                exposure, env = get_env_value(page, keyword)
+                cnt, env = get_env_value(page, keyword)
                 pc, mobile, competition = get_key_vol(keyword)
             except Exception as e:
                 print("[ERROR]", e)
-                exposure, env = 0, "블로그 블록 없음"
+                cnt, env = 0, "블로그 블록 없음"
                 pc, mobile, competition = 0, 0, "알수없음"
 
             new_state = {
                 "date": datetime.datetime.combine(datetime.date.today(), datetime.time.min),
+                "keyword": keyword,
+                "itemId": itemId,
                 "mobile": mobile,
                 "pc": pc,
                 "competition": competition,
-                "exposure": exposure,
+                "cnt": cnt,
                 "env": env
             }
 
-            if new_state:  # None 체크
-                upload(keyword, new_state)
-            else:
-                print(f"[WARN] new_state is None for keyword: {keyword}")
+            upload(new_state, "Blog_States")
 
             progress = round(((idx + 1) / len(df)) * 100, 2)
-            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → exposure={exposure}, env={env}, mobile={mobile}")
+            print(f"{progress}% {datetime.datetime.now() - start_time} {keyword} → cnt={cnt}, env={env}, mobile={mobile}")
 
         browser.close()
 

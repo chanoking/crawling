@@ -45,10 +45,10 @@ BLOCK_SELECTORS = [
     '[data-block-id="review/prs_template_v2_review_blog_rra_mo.ts"]'
 ]
 
-def detect_blocks(page, selectors):
+def detect_blocks(page):
     candidates = []
 
-    for sel in selectors:
+    for sel in BLOCK_SELECTORS:
         locator = page.locator(sel)
         count = locator.count()
 
@@ -126,7 +126,7 @@ def parse_blog_template_get_value(page, keyword):
         wait_until="domcontentloaded"
     )
 
-    validBlocks = detect_blocks(page, BLOCK_SELECTORS)
+    validBlocks = detect_blocks(page)
 
     if len(validBlocks) == 0:
         return 0, "블로그 블록 없음"

@@ -77,9 +77,7 @@ def extract_item(item, rank_index, blog_name, context):
         return 0
 
     blog_title = title_el.inner_text().strip()
-    # print(f"blog_title: {blog_title}")
 
-    # 블로그명 예외 매핑
     alias_map = {
         "모모둥이": "아쿵아쿵",
         "셀럽주부": "안탈리아",

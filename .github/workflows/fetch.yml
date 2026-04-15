@@ -40,3 +40,4 @@ jobs:
           MONGO_URI: ${{ secrets.MONGO_URI}}
         run: |
           python blog/app/fetch_state.py
+          python blog/app/fetch_state_by_blog_name.py

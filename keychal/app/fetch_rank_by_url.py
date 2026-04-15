@@ -91,21 +91,6 @@ def get_rank_for_keyword(page, keyword, target_url=None):
 
     return rank
 
-# def get_view_for_keyword(page, keyword):
-#     page.goto(
-#         f"https://surffing.net/keyword/{keyword}",
-#         wait_until="domcontentloaded"
-#     )
-
-#     viewSel = page.locator('#keywordResults td.num-total')
-
-#     view = 10
-
-#     if viewSel.count() > 0:
-#         raw = viewSel.first.inner_text().strip()
-#         view = int(raw.replace(",", ""))
-
-#     return view    
 
 # -----------------------------
 # 7. 메인 실행
